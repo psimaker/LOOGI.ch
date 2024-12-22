@@ -1,0 +1,81 @@
+# This Docker Compose configuration differs from the original.
+# For production use, I recommend placing it behind a reverse proxy
+# such as Nginx, Caddy, or Traefik. You can add it in this compose or you can create a seperate container
+#
+# to get searxng-docker data
+# cd /usr/local
+# git clone https://github.com/searxng/searxng-docker.git
+# cd searxng-docker
+
+# docker-compose:
+
+version: "3.7"
+
+services:
+  redis:
+    container_name: redis
+    image: docker.io/valkey/valkey:8-alpine
+
+    command: valkey-server --save 30 1 --loglevel warning
+    restart: unless-stopped
+    networks:
+      - searxng
+
+    volumes:
+      - valkey-data2:/data
+    # Security capabilities (use "#" for values in cap_drop at first run)
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+      - DAC_OVERRIDE
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+  searxng:
+    container_name: searxng
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    networks:
+      - searxng
+    # Keep the port definition from your original setup
+    # Replace "8089" with whatever you had originally if different
+    ports:
+      - "8089:8080"
+    # Mount statically for customizing SearxNG settings, templates, etc.
+    # Add or remove volumes as you need
+    volumes:
+      - ./searxng:/etc/searxng:rw
+      # Example if you had additional static volumes (for persistent changes):
+      # - ./searxng-static:/usr/local/searxng/searx/static:rw
+      # - ./searxng-templates:/usr/local/searxng/searx/templates:rw
+    environment:
+      # If you using reverse proxy, change url to target
+      - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
+      - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
+      - UWSGI_THREADS=${SEARXNG_UWSGI_THREADS:-4}
+    # Security capabilities (use "#" for values in cap_drop at first run)
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+
+networks:
+  searxng:
+
+volumes:
+  valkey-data2:
+
